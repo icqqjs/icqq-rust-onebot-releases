@@ -1,0 +1,129 @@
+name: Build & Release
+
+on:
+  repository_dispatch:
+    types: [release-build]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "版本 tag（如 v0.2.0）"
+        required: true
+      sha:
+        description: "源码 commit SHA"
+        required: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: 构建 ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            name: icqq-rs-linux
+            ext: ""
+
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
+            name: icqq-rs-linux-arm64
+            ext: ""
+
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            name: icqq-rs-windows
+            ext: ".exe"
+
+          - target: aarch64-pc-windows-msvc
+            os: windows-11-arm
+            name: icqq-rs-windows-arm64
+            ext: ".exe"
+
+          - target: x86_64-apple-darwin
+            os: macos-15-intel
+            name: icqq-rs-macos-x64
+            ext: ""
+
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            name: icqq-rs-macos
+            ext: ""
+
+    steps:
+      - name: 拉取源码
+        uses: actions/checkout@v4
+        with:
+          repository: icqqjs/icqq-rust-onebot
+          token: ${{ secrets.SOURCE_REPO_TOKEN }}
+          ref: ${{ github.event.client_payload.sha || github.event.inputs.sha }}
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: 缓存 cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: 构建
+        run: cargo build --release --target ${{ matrix.target }} -p icqq-app
+
+      - name: 打包 tar.gz
+        shell: bash
+        run: |
+          cp "target/${{ matrix.target }}/release/icqq-app${{ matrix.ext }}" "${{ matrix.name }}${{ matrix.ext }}"
+          tar czf "${{ matrix.name }}.tar.gz" "${{ matrix.name }}${{ matrix.ext }}"
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}.tar.gz
+          path: ${{ matrix.name }}.tar.gz
+
+  release:
+    name: 发布 Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: 下载全部产物
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: 整理产物
+        run: |
+          mkdir -p release
+          for dir in artifacts/*/; do
+            cp "$dir"* release/
+          done
+          ls -la release/
+
+      - name: 创建 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.client_payload.tag || github.event.inputs.tag }}
+          name: ${{ github.event.client_payload.tag || github.event.inputs.tag }}
+          make_latest: true
+          files: release/*
+          body: |
+            ## icqq-rust-onebot ${{ github.event.client_payload.tag || github.event.inputs.tag }}
+
+            源码 commit: `${{ github.event.client_payload.sha || github.event.inputs.sha }}`
+
+            ### 下载
+            | 平台 | 文件 |
+            |------|------|
+            | Linux x64 | `icqq-rs-linux.tar.gz` |
+            | Linux arm64 | `icqq-rs-linux-arm64.tar.gz` |
+            | Windows x64 | `icqq-rs-windows.tar.gz` |
+            | Windows arm64 | `icqq-rs-windows-arm64.tar.gz` |
+            | macOS arm64 | `icqq-rs-macos.tar.gz` |
+            | macOS x64 | `icqq-rs-macos-x64.tar.gz` |

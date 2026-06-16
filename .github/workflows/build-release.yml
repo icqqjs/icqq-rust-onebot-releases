@@ -16,8 +16,41 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # 前置预检：拉取源码，先跑一遍 格式检查 / Clippy / 测试。
+  # 任何一项不过都会让后面的全平台构建直接跳过，避免白跑六个平台。
+  preflight:
+    name: 预检（fmt / clippy / test）
+    runs-on: ubuntu-latest
+    steps:
+      - name: 拉取源码
+        uses: actions/checkout@v4
+        with:
+          repository: icqqjs/icqq-rust-onebot
+          token: ${{ secrets.SOURCE_REPO_TOKEN }}
+          ref: ${{ github.event.client_payload.sha || github.event.inputs.sha }}
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: 缓存 cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: preflight
+
+      - name: 格式检查
+        run: cargo fmt --all -- --check
+
+      - name: Clippy（0 警告）
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: 测试
+        run: cargo test --workspace
+
   build:
     name: 构建 ${{ matrix.name }}
+    needs: preflight
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

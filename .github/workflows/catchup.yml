@@ -1,0 +1,73 @@
+name: Catch-up Release（手动补发上游漏掉的 tag）
+
+# 兜底入口：上游（私有仓）push tag 时本应通过跨仓 repository_dispatch 触发 build-release，
+# 但上游 Actions 额度耗尽时 dispatch 不会发出 → 漏发版。此处在发版仓侧手动触发：对比
+# 「上游全部 tag」与「本仓已发布 release」，把缺失的 tag 按版本号升序、逐个串行补发。
+on:
+  workflow_dispatch:
+    inputs:
+      only_tag:
+        description: "只补这一个 tag（留空 = 自动补全所有缺失的 tag，按版本升序）"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  plan:
+    name: 计算缺失 tag
+    runs-on: ubuntu-latest
+    outputs:
+      missing: ${{ steps.diff.outputs.missing }}
+      count: ${{ steps.diff.outputs.count }}
+    steps:
+      - name: 求「上游 tag」与「本仓 release」的差集（升序）
+        id: diff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SRC_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN }}
+          ONLY_TAG: ${{ inputs.only_tag }}
+        run: |
+          set -euo pipefail
+          # 上游全部 tag + 对应 commit sha（私有仓，用 SOURCE_REPO_TOKEN 读），按版本升序。
+          GH_TOKEN="$SRC_TOKEN" gh api --paginate \
+            repos/icqqjs/icqq-rust-onebot/tags \
+            --jq '.[] | [.name, .commit.sha] | @tsv' \
+            | sort -V > upstream.tsv
+          # 本仓已发布的 release tag。
+          gh release list -R "$GITHUB_REPOSITORY" --limit 1000 \
+            --json tagName --jq '.[].tagName' | sort -u > released.txt
+          # 差集：上游有、本仓没有；保留 upstream.tsv 的升序。可选 only_tag 只留那一个。
+          : > missing.tsv
+          while IFS=$'\t' read -r tag sha; do
+            [ -z "$tag" ] && continue
+            if [ -n "$ONLY_TAG" ] && [ "$tag" != "$ONLY_TAG" ]; then continue; fi
+            if grep -qxF "$tag" released.txt; then continue; fi
+            printf '%s\t%s\n' "$tag" "$sha" >> missing.tsv
+          done < upstream.tsv
+          # 转成 matrix include 用的紧凑 JSON 数组：[{"tag":..,"sha":..}, ...]
+          missing_json=$(jq -R -s -c '
+            split("\n") | map(select(length>0)) |
+            map(split("\t") | {tag: .[0], sha: .[1]})' missing.tsv)
+          count=$(jq 'length' <<<"$missing_json")
+          echo "需补发 $count 个 tag（升序）："
+          jq -r '.[] | "  \(.tag)  \(.sha)"' <<<"$missing_json"
+          echo "missing=$missing_json" >> "$GITHUB_OUTPUT"
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+
+  # 逐个串行补发：max-parallel:1 + 升序 → 保证 make_latest 最终落到最新 tag，顺序不乱。
+  release-each:
+    name: 补发 ${{ matrix.tag }}
+    needs: plan
+    if: needs.plan.outputs.count != '0'
+    strategy:
+      max-parallel: 1
+      fail-fast: true
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.missing) }}
+    uses: ./.github/workflows/build-release.yml
+    with:
+      tag: ${{ matrix.tag }}
+      sha: ${{ matrix.sha }}
+    secrets: inherit

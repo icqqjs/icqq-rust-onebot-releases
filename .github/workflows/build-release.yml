@@ -11,6 +11,17 @@ on:
       sha:
         description: "源码 commit SHA"
         required: true
+  # 可复用入口：被 catchup.yml 逐个 tag 串行调用（补发上游漏掉的 tag）。
+  workflow_call:
+    inputs:
+      tag:
+        description: "版本 tag"
+        required: true
+        type: string
+      sha:
+        description: "源码 commit SHA"
+        required: true
+        type: string
 
 env:
   CARGO_TERM_COLOR: always
@@ -27,7 +38,7 @@ jobs:
         with:
           repository: icqqjs/icqq-rust-onebot
           token: ${{ secrets.SOURCE_REPO_TOKEN }}
-          ref: ${{ github.event.client_payload.sha || github.event.inputs.sha }}
+          ref: ${{ github.event.client_payload.sha || inputs.sha }}
 
       - name: 安装 Rust 工具链
         uses: dtolnay/rust-toolchain@stable
@@ -92,7 +103,7 @@ jobs:
         with:
           repository: icqqjs/icqq-rust-onebot
           token: ${{ secrets.SOURCE_REPO_TOKEN }}
-          ref: ${{ github.event.client_payload.sha || github.event.inputs.sha }}
+          ref: ${{ github.event.client_payload.sha || inputs.sha }}
 
       - name: 安装 Rust 工具链
         uses: dtolnay/rust-toolchain@stable
@@ -110,8 +121,12 @@ jobs:
       - name: 打包 tar.gz
         shell: bash
         run: |
-          cp "target/${{ matrix.target }}/release/icqq-app${{ matrix.ext }}" "${{ matrix.name }}${{ matrix.ext }}"
-          tar czf "${{ matrix.name }}.tar.gz" "${{ matrix.name }}${{ matrix.ext }}"
+          pkg="${{ matrix.name }}"
+          mkdir -p "$pkg"
+          cp "target/${{ matrix.target }}/release/icqq-app${{ matrix.ext }}" "$pkg/"
+          # 把示例配置一起打进发布包（随上游源码 checkout 而来，在仓库根）。
+          cp config.example.yaml "$pkg/"
+          tar czf "$pkg.tar.gz" "$pkg"
 
       - name: 上传产物
         uses: actions/upload-artifact@v4
@@ -142,14 +157,14 @@ jobs:
       - name: 创建 Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.client_payload.tag || github.event.inputs.tag }}
-          name: ${{ github.event.client_payload.tag || github.event.inputs.tag }}
+          tag_name: ${{ github.event.client_payload.tag || inputs.tag }}
+          name: ${{ github.event.client_payload.tag || inputs.tag }}
           make_latest: true
           files: release/*
           body: |
-            ## icqq-rust-onebot ${{ github.event.client_payload.tag || github.event.inputs.tag }}
+            ## icqq-rust-onebot ${{ github.event.client_payload.tag || inputs.tag }}
 
-            源码 commit: `${{ github.event.client_payload.sha || github.event.inputs.sha }}`
+            源码 commit: `${{ github.event.client_payload.sha || inputs.sha }}`
 
             ### 下载
             | 平台 | 文件 |

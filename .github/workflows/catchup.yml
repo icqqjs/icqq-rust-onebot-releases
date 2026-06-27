@@ -40,9 +40,12 @@ jobs:
             --json tagName --jq '.[].tagName' | sort -u > released.txt
           # 差集：上游有、本仓没有；保留 upstream.tsv 的升序。可选 only_tag 只留那一个。
           : > missing.tsv
+          # only_tag 容错前导 v：用户可能填 "0.6.0" 而上游 tag 为 "v0.6.0"（或反之）。
+          # 比较时两边各去掉一个前导 v 再比，避免精确匹配因 v 前缀失配 → 误判「0 个补发」。
+          ONLY_NORM="${ONLY_TAG#v}"
           while IFS=$'\t' read -r tag sha; do
             [ -z "$tag" ] && continue
-            if [ -n "$ONLY_TAG" ] && [ "$tag" != "$ONLY_TAG" ]; then continue; fi
+            if [ -n "$ONLY_TAG" ] && [ "${tag#v}" != "$ONLY_NORM" ]; then continue; fi
             if grep -qxF "$tag" released.txt; then continue; fi
             printf '%s\t%s\n' "$tag" "$sha" >> missing.tsv
           done < upstream.tsv

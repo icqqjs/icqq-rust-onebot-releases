@@ -1,4 +1,4 @@
-# icqq-rust-onebot
+# icqq-onebot
 
 > [!WARNING]
 > 请勿相信docs和readme中关于本项目的任何信息，除非你确认它们是最新的。
@@ -13,16 +13,16 @@
 
 ## 下载
 
-前往 [Releases](https://github.com/icqqjs/icqq-rust-onebot-releases/releases) 下载对应平台的预编译二进制：
+前往 [Releases](https://github.com/icqqjs/icqq-onebot/releases) 下载对应平台的预编译二进制。每个压缩包解压后是「二进制 + `config.example.yaml`」两个文件：
 
-| 平台 | 文件名 |
-|------|--------|
-| Linux x64 | `icqq-rs-linux.tar.gz` |
-| Linux arm64 | `icqq-rs-linux-arm64.tar.gz` |
-| Windows x64 | `icqq-rs-windows.tar.gz` |
-| Windows arm64 | `icqq-rs-windows-arm64.tar.gz` |
-| macOS arm64 | `icqq-rs-macos.tar.gz` |
-| macOS x64 | `icqq-rs-macos-x64.tar.gz` |
+| 平台 | 文件名 | 解压后的二进制 |
+|------|--------|----------------|
+| Linux x64 | `icqq-linux.tar.gz` | `icqq-linux` |
+| Linux arm64 | `icqq-linux-arm64.tar.gz` | `icqq-linux-arm64` |
+| Windows x64 | `icqq-windows.tar.gz` | `icqq-windows.exe` |
+| Windows arm64 | `icqq-windows-arm64.tar.gz` | `icqq-windows-arm64.exe` |
+| macOS arm64 | `icqq-macos.tar.gz` | `icqq-macos` |
+| macOS x64 | `icqq-macos-x64.tar.gz` | `icqq-macos-x64` |
 
 ## 文档
 
@@ -339,7 +339,7 @@
 
 ## 与标准 OneBot 11 的差异
 
-| 特性 | 标准 OneBot 11 | icqq-rust-onebot |
+| 特性 | 标准 OneBot 11 | icqq-onebot |
 | ---- | ---- | ---- |
 | CQ 码 | 支持 | **不支持**，仅数组消息段 |
 | `message_id` | int32 整数 | base64url **字符串** |
@@ -355,4 +355,4 @@
 
 ## 反馈
 
-如有问题或建议，请在本仓库 [Issues](https://github.com/icqqjs/icqq-rust-onebot-releases/issues) 中提交。
+如有问题或建议，请在本仓库 [Issues](https://github.com/icqqjs/icqq-onebot/issues) 中提交。

@@ -69,32 +69,32 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            name: icqq-rs-linux
+            name: icqq-linux
             ext: ""
 
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-24.04-arm
-            name: icqq-rs-linux-arm64
+            name: icqq-linux-arm64
             ext: ""
 
           - target: x86_64-pc-windows-msvc
             os: windows-latest
-            name: icqq-rs-windows
+            name: icqq-windows
             ext: ".exe"
 
           - target: aarch64-pc-windows-msvc
             os: windows-11-arm
-            name: icqq-rs-windows-arm64
+            name: icqq-windows-arm64
             ext: ".exe"
 
           - target: x86_64-apple-darwin
             os: macos-15-intel
-            name: icqq-rs-macos-x64
+            name: icqq-macos-x64
             ext: ""
 
           - target: aarch64-apple-darwin
             os: macos-latest
-            name: icqq-rs-macos
+            name: icqq-macos
             ext: ""
 
     steps:
@@ -121,12 +121,16 @@ jobs:
       - name: 打包 tar.gz
         shell: bash
         run: |
-          pkg="${{ matrix.name }}"
-          mkdir -p "$pkg"
-          cp "target/${{ matrix.target }}/release/icqq-app${{ matrix.ext }}" "$pkg/"
+          name="${{ matrix.name }}"
+          bin="$name${{ matrix.ext }}"
+          mkdir -p dist
+          # 二进制按平台名重命名（如 icqq-windows.exe / icqq-linux / icqq-macos），
+          # 多平台下载到一起也能区分。
+          cp "target/${{ matrix.target }}/release/icqq-app${{ matrix.ext }}" "dist/$bin"
           # 把示例配置一起打进发布包（随上游源码 checkout 而来，在仓库根）。
-          cp config.example.yaml "$pkg/"
-          tar czf "$pkg.tar.gz" "$pkg"
+          cp config.example.yaml dist/
+          # 平铺打包：解压后直接是「二进制 + config.example.yaml」两个文件，无外层目录。
+          tar czf "$name.tar.gz" -C dist "$bin" config.example.yaml
 
       - name: 上传产物
         uses: actions/upload-artifact@v4
@@ -162,16 +166,16 @@ jobs:
           make_latest: true
           files: release/*
           body: |
-            ## icqq-rust-onebot ${{ github.event.client_payload.tag || inputs.tag }}
+            ## icqq-onebot ${{ github.event.client_payload.tag || inputs.tag }}
 
             源码 commit: `${{ github.event.client_payload.sha || inputs.sha }}`
 
             ### 下载
             | 平台 | 文件 |
             |------|------|
-            | Linux x64 | `icqq-rs-linux.tar.gz` |
-            | Linux arm64 | `icqq-rs-linux-arm64.tar.gz` |
-            | Windows x64 | `icqq-rs-windows.tar.gz` |
-            | Windows arm64 | `icqq-rs-windows-arm64.tar.gz` |
-            | macOS arm64 | `icqq-rs-macos.tar.gz` |
-            | macOS x64 | `icqq-rs-macos-x64.tar.gz` |
+            | Linux x64 | `icqq-linux.tar.gz` |
+            | Linux arm64 | `icqq-linux-arm64.tar.gz` |
+            | Windows x64 | `icqq-windows.tar.gz` |
+            | Windows arm64 | `icqq-windows-arm64.tar.gz` |
+            | macOS arm64 | `icqq-macos.tar.gz` |
+            | macOS x64 | `icqq-macos-x64.tar.gz` |
